@@ -6,7 +6,7 @@
 """
 # 필요한 라이브러리를 가져옴
 import cv2          # 컴퓨터 비전 작업을 위한 OpenCV 라이브러리. 영상 처리, 웸캠 제어 등 사용
-import webbrowser   # 웹 브라우저를 제어하기 위한 라이브러리. URL을 열기 위해 사용(별도 설치 없이 사용 가능)
+# import webbrowser   # 웹 브라우저를 제어하기 위한 라이브러리. URL을 열기 위해 사용(별도 설치 없이 사용 가능)
 
 # 메인 함수 정의
 def main():
@@ -41,8 +41,8 @@ def main():
                 print(msg)
                 
                 # 웹 링크인 경우 브라우저 열기 인식된 주소가 'http' 또는 'https'로 시작하는 경우
-                if data.startswith("http") or data.startswith("https"):
-                    webbrowser.open(data)  # 웹 브라우저로 URL 열기
+                # if data.startswith("http") or data.startswith("https"):
+                   # webbrowser.open(data)  # 웹 브라우저로 URL 열기
                 
                 last_data = data # 현재 인식된 데이터를 저장
             # QR 코드의 경계 상자가 존재하면, 경계 상자를 그려서 시각적으로 표시 (녹색)
@@ -52,6 +52,8 @@ def main():
                 # 경계 상자를 그리기 위해 네 개의 선을 차례대로 그림
                 for i in range(len(pts)):
                     cv2.line(frame, tuple(pts[i]), tuple(pts[(i + 1) % len(pts)]), (0, 255, 0), 2)
+            display_msg = "QR 인식 성공"
+            color = (0, 255, 0)  # 녹색 표시
 
         else:
             # QR 코드가 인식되지 않은 경우
