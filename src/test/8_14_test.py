@@ -15,6 +15,9 @@ def main():
         return
 
     detector = cv2.QRCodeDetector()
+    print("QR 코드 인식 시작 ('q'로 종료)")
+
+    last_data = None
 
     while True:
         ret, frame = cap.read()
@@ -29,6 +32,7 @@ def main():
             if data.startswith("http") or data.startswith("https"):
                 print(f"URL 인식됨: {data}")
                 webbrowser.open(data)
+
 
 
         cv2.imshow("QR Code Scanner", frame)
