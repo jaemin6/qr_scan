@@ -50,7 +50,16 @@ def main():
                 pts = bbox.astype(int).reshape(-1, 2)
                 for i in range(len(pts)):
                     cv2.line(frame, tuple(pts[i]), tuple(pts[(i + 1) % len(pts)]), (0, 255, 0), 2)
-                    
+
+        else:
+            # QR 코드가 인식되지 않은 경우
+            display_msg = "X QR 미인식"
+            color = (0, 0, 255) # 빨간색 표시
+            last_data = None    # QR 코드가 사라지면 마지막 데이터를 초기화
+
+        cv2.putText(frame, display_msg, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+
+        
         cv2.imshow("QR Code Scanner", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
