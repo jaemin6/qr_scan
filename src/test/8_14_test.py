@@ -45,9 +45,11 @@ def main():
                     webbrowser.open(data)  # 웹 브라우저로 URL 열기
                 
                 last_data = data # 현재 인식된 데이터를 저장
-
+            # QR 코드의 경계 상자가 존재하면, 경계 상자를 그려서 시각적으로 표시 (녹색)
             if bbox is not None:
+                # bbox는 QR 코드의 위치를 나타내는 좌표 배열
                 pts = bbox.astype(int).reshape(-1, 2)
+                # 경계 상자를 그리기 위해 네 개의 선을 차례대로 그림
                 for i in range(len(pts)):
                     cv2.line(frame, tuple(pts[i]), tuple(pts[(i + 1) % len(pts)]), (0, 255, 0), 2)
 
@@ -56,9 +58,8 @@ def main():
             display_msg = "X QR 미인식"
             color = (0, 0, 255) # 빨간색 표시
             last_data = None    # QR 코드가 사라지면 마지막 데이터를 초기화
-
+        # QR 코드 인식 결과를 화면에 표시
         cv2.putText(frame, display_msg, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-
         
         cv2.imshow("QR Code Scanner", frame)
 
