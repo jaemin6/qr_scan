@@ -27,11 +27,16 @@ def main():
         data, bbox, _ = detector.detectAndDecode(frame)
 
         if data:
-            # QR 코드에서 URL 인식 했을 때
-            # URL인지 확인하는
-            if data.startswith("http") or data.startswith("https"):
-                print(f"URL 인식됨: {data}")
-                webbrowser.open(data)
+            # 새로 인식된 데이터가 이전 데이터와 다를 경우에만 처리
+            if data != last_data:
+                msg = f"✅ QR 인식됨: {data}"
+                print(msg)
+                
+                # 웹 링크인 경우 브라우저 열기 (선택 사항)
+                if data.startswith("http") or data.startswith("https"):
+                    webbrowser.open(data)
+                
+                last_data = data # 현재 인식된 데이터를 저장
 
 
 
