@@ -46,6 +46,11 @@ def main():
                 
                 last_data = data # 현재 인식된 데이터를 저장
 
+            if bbox is not None:
+                pts = bbox.astype(int).reshape(-1, 2)
+                for i in range(len(pts)):
+                    cv2.line(frame, tuple(pts[i]), tuple(pts[(i + 1) % len(pts)]), (0, 255, 0), 2)
+                    
         cv2.imshow("QR Code Scanner", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
