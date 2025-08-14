@@ -1,4 +1,5 @@
 import cv2
+import webbrowser
 
 def main():
     cap = cv2.VideoCapture(0)
@@ -16,7 +17,12 @@ def main():
         data, bbox, _ = detector.detectAndDecode(frame)
 
         if data:
-            print(f"QR 인식됨: {data}")
+            # QR 코드에서 URL 인식 했을 때
+            # URL인지 확인하는
+            if data.startswith("http") or data.startswith("https"):
+                print(f"URL 인식됨: {data}")
+                webbrowser.open(data)
+
 
         cv2.imshow("QR Code Scanner", frame)
 
