@@ -1,119 +1,68 @@
-# pro_1_visual.py
-# Usage: python pro_1_visual.py  (Press 'q' to quit)
+# 필요한 라이브러리를 가져옴
+import cv2 # 컴퓨터 비전 작업을 위한 OpenCV 라이브러리
+import webbrowser  # 웹 브라우저를 제어하기 위한 라이브러리
 
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
-from collections import deque
-
-# ---------------------------
-# 자동 밝기/대비 보정 함수
-# ---------------------------
-def auto_enhance(frame):
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    mean = float(np.mean(gray))
-
-    if mean < 80:
-        gamma = 0.6  # brighten
-        inv = 1.0 / gamma
-        table = np.array([(i / 255.0) ** inv * 255 for i in np.arange(256)]).astype("uint8")
-        frame = cv2.LUT(frame, table)
-    elif mean > 180:
-        gamma = 1.4  # darken
-        inv = 1.0 / gamma
-        table = np.array([(i / 255.0) ** inv * 255 for i in np.arange(256)]).astype("uint8")
-        frame = cv2.LUT(frame, table)
-    else:
-        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        l2 = clahe.apply(l)
-        frame = cv2.cvtColor(cv2.merge([l2, a, b]), cv2.COLOR_LAB2BGR)
-    return frame
-
-# ---------------------------
-# 메인 함수
-# ---------------------------
+# 메인 함수 정의
 def main():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Camera not found. Try a different index (e.g., 1) or check permissions.")
-        return
+    cap = cv2.VideoCapture(0) # 0번 카메라(기본 웹캠)를 열기
+    if not cap.isOpened(): # 웹캠이 제대로 열렸는지 확인
+        print("❌ 웹캠을 열 수 없습니다. 카메라 연결 상태를 확인해 주세요.")
+        return # 함수를 종료
 
     detector = cv2.QRCodeDetector()
+    print("QR 코드 인식 시작 ('q'로 종료)")
 
-    # 인식률 측정 변수
-    total_attempts = 0
-    success_count = 0
-    rate_history = deque(maxlen=50)  # 최근 50개 성공률 기록
-
-    print("Press 'q' to quit.")
+    last_data = None  # 마지막으로 인식된 QR 코드 데이터를 저장할 변수
 
     while True:
-        ret, frame = cap.read()
-        if not ret:
+        ret, frame = cap.read() # 웹캠에서 한 프레임 읽기
+        if not ret:  # 프레임을 읽지 못하면 루프 종료
             break
 
-        enhanced = auto_enhance(frame)
+        data, bbox, _ = detector.detectAndDecode(frame)
 
-        # QR 코드 감지
-        total_attempts += 1
-        data, bbox, _ = detector.detectAndDecode(enhanced)
-        if not data:
-            data, bbox, _ = detector.detectAndDecode(frame)
-
+        # QR 코드가 성공적으로 인식되었을 경우
         if data:
-            success_count += 1
+            # 새로 인식된 데이터가 이전과 다를 때만 처리
+            if data != last_data:
+                msg = f"QR 인식됨: {data}"
+                print(msg)
+                
+                # 데이터가 URL이면 웹 브라우저 열기
+                if data.startswith("http") or data.startswith("https"):
+                    webbrowser.open(data)
+                
+                last_data = data # 현재 데이터를 마지막 데이터로 저장
 
-        # 성공률 계산
-        success_rate = (success_count / total_attempts) * 100
-        rate_history.append(success_rate)
+            # QR 코드가 인식된 상태에서는 경계 박스와 메시지 색상을 초록색으로 설정
+            display_msg = f"QR: {data}" # UI에 표시할 메시지
+            color = (0, 255, 0)
 
-        # 카메라 영상 표시
-        preview = enhanced.copy()
-        h, w = preview.shape[:2]
-        msg = "QR: " + (data if data else "—")
-        cv2.putText(preview, msg, (10, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,0), 3, cv2.LINE_AA)
-        cv2.putText(preview, msg, (10, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 1, cv2.LINE_AA)
+            # QR 코드 경계 박스 그리기
+            if bbox is not None:
+                pts = bbox.astype(int).reshape(-1, 2)
+                for i in range(len(pts)):
+                    cv2.line(frame, tuple(pts[i]), tuple(pts[(i + 1) % len(pts)]), color, 2)
 
-        if bbox is not None and len(bbox) > 0:
-            pts = bbox.astype(int).reshape(-1,2)
-            for i in range(len(pts)):
-                cv2.line(preview, tuple(pts[i]), tuple(pts[(i+1)%len(pts)]), (0,255,0), 2)
+        # QR 코드가 인식되지 않았을 경우 (else 블록 추가)
+        else:
+            display_msg = "QR: 인식 대기 중..."
+            color = (0, 0, 255) # 메시지 색상을 빨간색으로 설정
+            last_data = None  # QR 코드가 사라지면 마지막 데이터를 초기화
 
-        # ---------------------------
-        # 인식률 게이지 시각화
-        # ---------------------------
-        gauge_width = 200
-        gauge_height = 20
-        gauge_x = w - gauge_width - 10
-        gauge_y = 10
+        # 화면 하단에 메시지 표시
+        # 배경에 검은색 박스를 그려 텍스트 가독성을 높입니다.
+        text_bg_height = 40
+        cv2.rectangle(frame, (0, frame.shape[0] - text_bg_height), (frame.shape[1], frame.shape[0]), (0, 0, 0), -1)
+        cv2.putText(frame, display_msg, (10, frame.shape[0] - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
-        # 게이지 배경
-        cv2.rectangle(preview, (gauge_x, gauge_y), (gauge_x + gauge_width, gauge_y + gauge_height), (50, 50, 50), -1)
+        cv2.imshow("QR Code Scanner", frame)
 
-        # 게이지 채우기
-        fill_width = int((success_rate / 100) * gauge_width)
-        cv2.rectangle(preview, (gauge_x, gauge_y), (gauge_x + fill_width, gauge_y + gauge_height), (0, 255, 0), -1)
-
-        # 성공률 텍스트
-        cv2.putText(preview, f"{success_rate:.1f}%", (gauge_x + 5, gauge_y + 15),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1, cv2.LINE_AA)
-
-        # 시도/성공 횟수 표시
-        cv2.putText(preview, f"Attempts: {total_attempts}  Success: {success_count}",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 1, cv2.LINE_AA)
-
-        cv2.imshow("QR HelloWorld + Success Rate", preview)
-
-        # 종료 키
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
     cv2.destroyAllWindows()
 
-# ---------------------------
 if __name__ == "__main__":
     main()
