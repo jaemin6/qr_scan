@@ -37,7 +37,7 @@ def main():
         if data:
             # 새로 인식된 데이터가 이전 데이터와 다를 경우에만 처리
             if data != last_data:  # 이 조건을 통해 같은 qr 코드가 반복 인식되는 것을 방지
-                msg = f"✅ QR 인식됨: {data}"
+                msg = f" QR 인식됨: {data}"
                 print(msg)
                 
                 # 웹 링크인 경우 브라우저 열기 인식된 주소가 'http' 또는 'https'로 시작하는 경우
