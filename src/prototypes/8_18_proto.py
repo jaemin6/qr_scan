@@ -1,6 +1,7 @@
 import cv2
 import webbrowser
 import time
+from PIL import ImageFont, ImageDraw, Image
 
 def main():
     cap = cv2.VideoCapture(0)
@@ -13,7 +14,11 @@ def main():
 
     last_data = None
     last_open_time = 0
-    DELAY_TIME = 3  # 같은 QR 다시 열리기까지 최소 대기 시간(초)
+    DELAY_TIME = 10  # 같은 QR 다시 열리기까지 최소 대기 시간(초)
+
+    #  한글 폰트 경로 지정 (Windows 기준: 맑은 고딕)
+    fontpath = "C:/Windows/Fonts/malgun.ttf"
+    font = ImageFont.truetype(fontpath, 20)
 
     while True:
         ret, frame = cap.read()
@@ -30,7 +35,7 @@ def main():
                 # URL 자동 보정 + 열기
                 url = data.strip()
                 if not url.startswith("http"):
-                    url = "http://" + url  # http:// 없으면 자동으로 붙임
+                    url = "http://" + url
                 webbrowser.open(url)
 
                 last_data = data
@@ -48,11 +53,16 @@ def main():
 
         else:
             display_msg = "QR 미인식"
-            color = (0, 0, 255)
-            last_data = None  # QR 사라지면 상태 초기화
+            color = (255, 0, 0)  # 빨강
+            last_data = None
 
-        cv2.putText(frame, display_msg, (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+        #  OpenCV → PIL 변환 (한글 폰트 출력용)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(frame_rgb)
+        draw = ImageDraw.Draw(pil_img)
+        draw.text((10, 30), display_msg, font=font, fill=color)  # 한글 표시
+        frame = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
         cv2.imshow("QR Code Scanner", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -62,4 +72,5 @@ def main():
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
+    import numpy as np  # PIL 변환을 위해 numpy 필요
     main()
