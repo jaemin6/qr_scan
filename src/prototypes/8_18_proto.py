@@ -33,6 +33,11 @@ def main():                           # 메인 함수 정의
         if not ret:             # 프레임을 읽지 못하면
             break               # 루프 종료
 
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # 프레임을 그레이스케일로 변환 (QR 코드 인식에 최적화)
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)  # 가우시안 블러 적용 (노이즈 감소)
+        _, binarized = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)  # 이진화 처리
+        data, bbox, _ = detector.detectAndDecode(binarized)  # QR 코드 인식 및 디코딩
+
         # QR 코드 인식 및 디코딩
         data, bbox, _ = detector.detectAndDecode(frame)  # 현재 프레임에서 qr인식 후 데이터 추출
         
