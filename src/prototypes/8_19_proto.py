@@ -130,26 +130,33 @@ def main():
         frame_count_improved += 1
         
         # YOLO 객체 탐지 시뮬레이션
-        # 여기서는 YOLO가 QR 코드의 정확한 위치를 찾아낸다고 가정합니다.
-        # 실제 구현에서는 YOLO 모델을 로드하여 바운딩 박스를 받아와야 합니다.
-        is_qr_detected_by_yolo = False
         data = None
         
         # QR 코드 디텍터로 바운딩 박스 찾아내기 (YOLO 시뮬레이션)
-        # 10초 테스트 동안 인식 성공 시 YOLO가 탐지했다고 간주
         _, points, _ = detector.detectAndDecode(frame)
 
-        if points is not None:
-            is_qr_detected_by_yolo = True
-            
-            # YOLO가 탐지한 바운딩 박스 영역만 잘라서 디코딩 시도
-            x, y, w, h = cv2.boundingRect(points.astype(int))
-            yolo_roi = frame[y:y+h, x:x+w]
-            data, _, _ = detector.detectAndDecode(yolo_roi)
-            
-            # 바운딩 박스 그리기
-            cv2.polylines(frame, points.astype(int), True, (0, 255, 255), 3)
+        if points is not None and points.size > 0:
+            try:
+                # 바운딩 박스 그리기
+                cv2.polylines(frame, points.astype(int), True, (0, 255, 255), 3)
 
+                # YOLO가 탐지한 바운딩 박스 영역만 잘라서 디코딩 시도
+                x, y, w, h = cv2.boundingRect(points.astype(int))
+                
+                # ROI(관심 영역) 좌표가 유효한지 안전하게 확인
+                # 좌표가 프레임 경계 밖으로 나가는 경우를 방지
+                x_safe = max(0, x)
+                y_safe = max(0, y)
+                x2_safe = min(frame.shape[1], x + w)
+                y2_safe = min(frame.shape[0], y + h)
+
+                if (x2_safe - x_safe) > 0 and (y2_safe - y_safe) > 0:
+                    yolo_roi = frame[y_safe:y2_safe, x_safe:x2_safe]
+                    data, _, _ = detector.detectAndDecode(yolo_roi)
+            except cv2.error:
+                # OpenCV 오류 발생 시 건너뛰기
+                pass
+        
         if data:
             success_count_improved += 1
         
