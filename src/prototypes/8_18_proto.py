@@ -32,14 +32,17 @@ def main():                           # 메인 함수 정의
         ret, frame = cap.read() # 웹캠에서 한 프레임 읽기(ret: 성공 여부, frame: 읽은 이미지)
         if not ret:             # 프레임을 읽지 못하면
             break               # 루프 종료
-
+ 
+        # 이미지 전처리 단계 추가, 프레임을 그레이스케일로 변환 (QR 코드 인식에 최적화)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # 프레임을 그레이스케일로 변환 (QR 코드 인식에 최적화)
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)  # 가우시안 블러 적용 (노이즈 감소)
         _, binarized = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)  # 이진화 처리
         data, bbox, _ = detector.detectAndDecode(binarized)  # QR 코드 인식 및 디코딩
 
-        # QR 코드 인식 및 디코딩
-        data, bbox, _ = detector.detectAndDecode(frame)  # 현재 프레임에서 qr인식 후 데이터 추출
+        if not data:
+            data, bbox, _ = detector.detectAndDecode(frame)  # 현재 프레임에서 qr인식 후 데이터 추출
+        
+        
         
         # QR 코드 인식 상태에 따라 메시지 및 색상 설정
         display_msg = "QR 미인식"
