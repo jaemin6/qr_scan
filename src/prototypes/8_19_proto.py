@@ -38,7 +38,7 @@ def put_text_on_frame(frame, text, pos, color=(255, 0, 0)):
 
 def create_graph_image(baseline_rate, improved_rate, fps_base, fps_improved):
     """
-    matplotlib을 사용하여 성능 그래프를 생성하고, OpenCV 이미지로 변환하여 반환합니다.
+    matplotlib을 사용하여 최종 성능 그래프를 생성합니다.
     """
     plt.style.use('dark_background')
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 6), tight_layout=True)
@@ -102,29 +102,21 @@ def main():
         if data:
             success_count_base += 1
         
-        # FPS 및 인식률 계산
-        elapsed_base = time.time() - start_time_base
-        fps_base = frame_count_base / elapsed_base if elapsed_base > 0 else 0
-        success_rate_base = success_count_base / frame_count_base * 100 if frame_count_base > 0 else 0
-
-        # 그래프 생성
-        graph_img = create_graph_image(success_rate_base, 0, fps_base, 0)
-        
         # 프레임에 메시지 표시
         display_frame = put_text_on_frame(frame.copy(), "기본 방법 테스트 중", (10, 30), (255, 0, 0))
         if data:
             display_frame = put_text_on_frame(display_frame, f"QR 인식됨: {data}", (10, 60), (0, 255, 0))
         
-        # 프레임과 그래프를 병합
-        graph_height, graph_width, _ = graph_img.shape
-        frame_height, frame_width, _ = display_frame.shape
-        combined_frame = np.zeros((max(frame_height, graph_height), frame_width + graph_width, 3), dtype=np.uint8)
-        combined_frame[:frame_height, :frame_width] = display_frame
-        combined_frame[:graph_height, frame_width:] = graph_img
-        
-        cv2.imshow("QR 성능 테스트", combined_frame)
+        cv2.imshow("QR 성능 테스트", display_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'): break
         
+    cv2.destroyAllWindows()
+    
+    # 최종 FPS 및 인식률 계산
+    elapsed_base = time.time() - start_time_base
+    fps_base = frame_count_base / elapsed_base if elapsed_base > 0 else 0
+    success_rate_base = success_count_base / frame_count_base * 100 if frame_count_base > 0 else 0
+    
     # 2단계: 개선된 인식 방법 성능 측정
     print("--- 2단계: 개선된 인식 방법 성능 측정 시작 (10초) ---")
     start_time_improved = time.time()
@@ -139,48 +131,40 @@ def main():
 
         # 개선된 인식 방법: 전처리 후 인식
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        # 명암 대비 조절 (인식률 향상)
+        contrasted = cv2.equalizeHist(gray)
+        # 블랙 햇 변환을 통해 어두운 점 강조
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        black_hat = cv2.morphologyEx(contrasted, cv2.MORPH_BLACKHAT, kernel)
+        # 변환된 이미지와 원본의 명암을 합쳐서 최종 이미지 생성
+        enhanced_image = cv2.add(contrasted, black_hat)
+        
+        blurred = cv2.GaussianBlur(enhanced_image, (5, 5), 0)
         _, binarized = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
         data, _, _ = detector.detectAndDecode(binarized)
         
         if data:
             success_count_improved += 1
         
-        # FPS 및 인식률 계산
-        elapsed_improved = time.time() - start_time_improved
-        fps_improved = frame_count_improved / elapsed_improved if elapsed_improved > 0 else 0
-        success_rate_improved = success_count_improved / frame_count_improved * 100 if frame_count_improved > 0 else 0
-
-        # 그래프 생성
-        graph_img = create_graph_image(success_rate_base, success_rate_improved, fps_base, fps_improved)
-
         # 프레임에 메시지 표시
         display_frame = put_text_on_frame(frame.copy(), "개선된 방법 테스트 중", (10, 30), (0, 255, 0))
         if data:
             display_frame = put_text_on_frame(display_frame, f"QR 인식됨: {data}", (10, 60), (0, 255, 0))
         
-        # 프레임과 그래프를 병합
-        graph_height, graph_width, _ = graph_img.shape
-        frame_height, frame_width, _ = display_frame.shape
-        combined_frame = np.zeros((max(frame_height, graph_height), frame_width + graph_width, 3), dtype=np.uint8)
-        combined_frame[:frame_height, :frame_width] = display_frame
-        combined_frame[:graph_height, frame_width:] = graph_img
-        
-        cv2.imshow("QR 성능 테스트", combined_frame)
+        cv2.imshow("QR 성능 테스트", display_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'): break
-            
+    
+    cv2.destroyAllWindows()
+
+    # 최종 FPS 및 인식률 계산
+    elapsed_improved = time.time() - start_time_improved
+    fps_improved = frame_count_improved / elapsed_improved if elapsed_improved > 0 else 0
+    success_rate_improved = success_count_improved / frame_count_improved * 100 if frame_count_improved > 0 else 0
+
     # 최종 결과 표시
     final_graph = create_graph_image(success_rate_base, success_rate_improved, fps_base, fps_improved)
-    final_frame = put_text_on_frame(np.zeros_like(frame), "테스트 완료! 'q'를 눌러 종료하세요.", (50, 50), (255, 255, 255))
-
-    # 최종 프레임과 그래프를 병합
-    graph_height, graph_width, _ = final_graph.shape
-    frame_height, frame_width, _ = final_frame.shape
-    combined_final = np.zeros((max(frame_height, graph_height), frame_width + graph_width, 3), dtype=np.uint8)
-    combined_final[:frame_height, :frame_width] = final_frame
-    combined_final[:graph_height, frame_width:] = final_graph
-
-    cv2.imshow("QR 성능 테스트", combined_final)
+    cv2.imshow("QR 성능 최종 결과", final_graph)
 
     print("\n--- 분석 완료 ---")
     print(f"기본 방법: 평균 FPS {fps_base:.2f}, 인식률 {success_rate_base:.2f}%")
