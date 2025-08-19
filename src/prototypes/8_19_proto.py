@@ -11,9 +11,8 @@ from PIL import ImageFont, ImageDraw, Image
 matplotlib.use('Agg')
 
 # 한글 폰트 설정 (matplotlib용)
-# 시스템에 설치된 폰트를 찾아 사용하거나, 경로를 직접 지정합니다.
-plt.rcParams['font.family'] = 'Malgun Gothic' # Windows
-plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
+plt.rcParams['font.family'] = 'Malgun Gothic'  # Windows
+plt.rcParams['axes.unicode_minus'] = False    # 마이너스 기호 깨짐 방지
 
 # OpenCV용 한글 폰트 경로 지정 (Windows 기준: 맑은 고딕)
 try:
@@ -71,8 +70,33 @@ def create_graph_image(baseline_rate, improved_rate, fps_base, fps_improved):
     graph_img = np.asarray(buf, dtype=np.uint8)
     graph_img = cv2.cvtColor(graph_img, cv2.COLOR_RGBA2BGR)
     
-    plt.close(fig) # 메모리 해제
+    plt.close(fig)  # 메모리 해제
     return graph_img
+
+# ===== 조명 환경 개선 함수 추가 =====
+def improve_lighting(frame):
+    """
+    CLAHE + Gamma 보정으로 조명 환경 개선
+    """
+    # LAB 컬러 공간으로 변환
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+
+    # CLAHE 적용
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    cl = clahe.apply(l)
+
+    # 다시 합쳐서 BGR로 변환
+    limg = cv2.merge((cl, a, b))
+    enhanced = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+
+    # Gamma 보정
+    gamma = 1.2  # 1.0보다 크면 밝아짐
+    look_up = np.array([((i / 255.0) ** (1.0 / gamma)) * 255
+                        for i in np.arange(256)]).astype("uint8")
+    enhanced = cv2.LUT(enhanced, look_up)
+
+    return enhanced
 
 def main():
     """
@@ -112,7 +136,6 @@ def main():
         
     cv2.destroyAllWindows()
     
-    # 최종 FPS 및 인식률 계산
     elapsed_base = time.time() - start_time_base
     fps_base = frame_count_base / elapsed_base if elapsed_base > 0 else 0
     success_rate_base = success_count_base / frame_count_base * 100 if frame_count_base > 0 else 0
@@ -129,22 +152,17 @@ def main():
         
         frame_count_improved += 1
         
-        # YOLO 객체 탐지 시뮬레이션
-        data = None
+        # ===== 조명 환경 개선 적용 =====
+        frame = improve_lighting(frame)
         
-        # QR 코드 디텍터로 바운딩 박스 찾아내기 (YOLO 시뮬레이션)
+        data = None
         _, points, _ = detector.detectAndDecode(frame)
 
         if points is not None and points.size > 0:
             try:
-                # 바운딩 박스 그리기
                 cv2.polylines(frame, points.astype(int), True, (0, 255, 255), 3)
 
-                # YOLO가 탐지한 바운딩 박스 영역만 잘라서 디코딩 시도
                 x, y, w, h = cv2.boundingRect(points.astype(int))
-                
-                # ROI(관심 영역) 좌표가 유효한지 안전하게 확인
-                # 좌표가 프레임 경계 밖으로 나가는 경우를 방지
                 x_safe = max(0, x)
                 y_safe = max(0, y)
                 x2_safe = min(frame.shape[1], x + w)
@@ -154,13 +172,11 @@ def main():
                     yolo_roi = frame[y_safe:y2_safe, x_safe:x2_safe]
                     data, _, _ = detector.detectAndDecode(yolo_roi)
             except cv2.error:
-                # OpenCV 오류 발생 시 건너뛰기
                 pass
         
         if data:
             success_count_improved += 1
         
-        # 프레임에 메시지 표시
         display_frame = put_text_on_frame(frame.copy(), "YOLO 기반 개선 방법 테스트 중", (10, 30), (0, 255, 0))
         if data:
             display_frame = put_text_on_frame(display_frame, f"QR 인식됨: {data}", (10, 60), (0, 255, 0))
@@ -170,12 +186,10 @@ def main():
     
     cv2.destroyAllWindows()
 
-    # 최종 FPS 및 인식률 계산
     elapsed_improved = time.time() - start_time_improved
     fps_improved = frame_count_improved / elapsed_improved if elapsed_improved > 0 else 0
     success_rate_improved = success_count_improved / frame_count_improved * 100 if frame_count_improved > 0 else 0
 
-    # 최종 결과 표시
     final_graph = create_graph_image(success_rate_base, success_rate_improved, fps_base, fps_improved)
     cv2.imshow("QR 성능 최종 결과", final_graph)
 
@@ -183,7 +197,7 @@ def main():
     print(f"기본 방법: 평균 FPS {fps_base:.2f}, 인식률 {success_rate_base:.2f}%")
     print(f"YOLO 기반 개선 방법: 평균 FPS {fps_improved:.2f}, 인식률 {success_rate_improved:.2f}%")
     
-    cv2.waitKey(0) # 키 입력 대기
+    cv2.waitKey(0)
     cap.release()
     cv2.destroyAllWindows()
 
