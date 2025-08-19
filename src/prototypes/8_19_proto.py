@@ -1,11 +1,3 @@
-'''
-1. QR 코드 인식 및 링크 열기 프로그램
-2. 성능 비교: 기본 인식 방법과 향상된 방법
-3. OpenCV, NumPy, Matplotlib, Pillow 라이브러리 사용
-4. 웹캠을 통해 실시간으로 QR 코드를 인식하고, 유효한 URL이면 브라우저에서 엽니다.
-5. 인식률과 FPS를 비교하여 그래프로 시각화합니다.
-'''
-
 # 필요한 라이브러리 가져오기
 import cv2 # OpenCV 라이브러리: 이미지 및 비디오 처리에 사용됩니다.
 import time # 시간 관련 라이브러리: 성능 측정을 위해 사용됩니다.
@@ -222,41 +214,40 @@ def main():
         ret, frame = cap.read() # 웹캠에서 프레임을 읽습니다.
         if not ret: break # 프레임을 읽는 데 실패하면 루프를 종료합니다.
 
-        # 초점 안내 문구 추가
-        display_frame = put_text_on_frame(frame.copy(), "초점을 맞추세요", (frame.shape[1] // 2 - 100, frame.shape[0] // 2), (0, 255, 255))
-        
-        # 노이즈 제거, 조명 보정, 선명화 적용
-        processed_frame = remove_noise(frame.copy())
-        processed_frame = adjust_lighting(processed_frame)
-        processed_frame = sharpen_image(processed_frame)
-        
-        # QR 코드 디텍터로 바운딩 박스 찾아내기
-        data, points, _ = detector.detectAndDecode(processed_frame)
-        
+        data = None # 디코딩 결과를 저장할 변수 초기화
+        points = None
+
+        # 1. 원본 프레임에서 인식 시도
+        data, points, _ = detector.detectAndDecode(frame)
+
+        if not data:
+            # 2. 실패하면 전처리된 프레임으로 인식 시도
+            processed_frame = remove_noise(frame.copy())
+            processed_frame = adjust_lighting(processed_frame)
+            processed_frame = sharpen_image(processed_frame)
+            data, points, _ = detector.detectAndDecode(processed_frame)
+
+        # 결과에 따른 UI 업데이트
+        display_frame = frame.copy()
         if points is not None and points.size > 0:
             cv2.polylines(display_frame, points.astype(int), True, (0, 255, 255), 3)
 
-        # 만약 data가 비어있다면, 추가적인 인식 시도 (이진화 & 컨투어링)
-        if not data:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) # 흑백으로 변환
-            # Adaptive Thresholding을 사용하여 이미지를 이진화
-            _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            
-            # QR 코드 디코딩
-            data, _, _ = detector.detectAndDecode(binary)
-
         if data:
             if is_valid_url(data):
+                display_frame = put_text_on_frame(display_frame, f"QR 코드 인식 성공! 링크를 엽니다...", (10, 60), (0, 255, 0))
+                cv2.imshow("QR 코드 인식", display_frame)
+                cv2.waitKey(1)
                 print(f"QR 코드 인식 성공! 링크를 엽니다: {data}")
                 webbrowser.open(data)
                 break
             else:
-                display_frame = put_text_on_frame(frame, f"QR 코드 인식됨: {data}", (10, 60), (0, 255, 0))
+                display_frame = put_text_on_frame(display_frame, f"QR 코드 인식됨: {data}", (10, 60), (0, 255, 0))
                 display_frame = put_text_on_frame(display_frame, "하지만 유효한 URL이 아닙니다.", (10, 90), (0, 0, 255))
         else:
-            display_frame = put_text_on_frame(frame, "QR 코드 찾는 중...", (10, 30), (255, 0, 0))
+            display_frame = put_text_on_frame(display_frame, "QR 코드 찾는 중...", (10, 30), (255, 0, 0))
+            display_frame = put_text_on_frame(display_frame, "초점을 맞추거나 QR코드를 조금 더 가까이/멀리 가져가세요", (10, display_frame.shape[0] - 30), (0, 255, 255))
             
-        cv2.imshow("QR 코드 인식", display_fㅁrame)
+        cv2.imshow("QR 코드 인식", display_frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
