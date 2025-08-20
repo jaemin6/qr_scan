@@ -168,6 +168,9 @@ def main():
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+        # CPU 사용량을 줄이고 비디오 프레임 속도를 조절하기 위해 1초 딜레이를 추가합니다.
+        time.sleep(0.01)
+
     # 자원 해제 및 통계 표시
     cap.release()
     cv2.destroyAllWindows()
