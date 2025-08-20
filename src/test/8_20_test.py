@@ -34,7 +34,7 @@ def put_text_on_frame(frame, text, pos, color=(255, 0, 0)):
 
 def enhance_image_for_qr(frame):
     """
-    QR 코드 인식을 향상시키기 위해 이미지 전처리를 수행합니다.
+    QR 코드 인식을 향상시키기 위해 컨투어 기반의 이미지 전처리를 수행합니다.
     """
     # 1. 그레이스케일 변환
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -42,18 +42,43 @@ def enhance_image_for_qr(frame):
     # 2. 노이즈 제거: 미디언 블러를 적용하여 영상의 잡음을 줄입니다.
     blurred = cv2.medianBlur(gray, 5)
 
-    # 3. 조명 보정: CLAHE(대비 제한 적응 히스토그램 평활화)를 적용하여
-    #    어두운 부분의 디테일을 살리고 대비를 향상시킵니다.
+    # 3. 조명 보정: CLAHE(대비 제한 적응 히스토그램 평활화)를 적용하여 대비를 향상시킵니다.
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     enhanced = clahe.apply(blurred)
 
-    # 4. 선명화: 샤프닝 커널을 사용하여 이미지의 경계선을 강조합니다.
-    kernel = np.array([[-1, -1, -1],
-                       [-1,  9, -1],
-                       [-1, -1, -1]])
-    sharpened = cv2.filter2D(enhanced, -1, kernel)
+    # 4. 이진화: QR 코드를 흑백으로 명확하게 구분합니다.
+    _, thresh = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    return sharpened
+    # 5. 컨투어 찾기: 이미지에서 객체의 외곽선을 찾습니다.
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # 6. QR 코드 영역 추출: 가장 큰 사각형 형태의 컨투어를 찾습니다.
+    largest_contour = None
+    max_area = 0
+
+    for contour in contours:
+        perimeter = cv2.arcLength(contour, True) # 컨투어의 둘레를 계산합니다.
+        # 다각형 근사화: 컨투어를 근사한 다각형으로 만듭니다.
+        approx = cv2.approxPolyDP(contour, 0.02 * perimeter, True) 
+        area = cv2.contourArea(contour)
+
+        # 사각형 형태의 컨투어이면서, 일정 크기 이상일 경우
+        if len(approx) == 4 and area > 1000:
+            if area > max_area:
+                max_area = area
+                largest_contour = approx
+
+    # 가장 큰 사각형 컨투어를 찾으면 해당 영역을 잘라내어 반환합니다.
+    if largest_contour is not None:
+        x, y, w, h = cv2.boundingRect(largest_contour)
+        # QR 코드 영역을 잘라냅니다.
+        cropped_qr = frame[y:y+h, x:x+w]
+        # 잘라낸 영역의 크기를 일정하게 조정하여 인식률을 높일 수 있습니다.
+        if cropped_qr.shape[0] > 0 and cropped_qr.shape[1] > 0:
+            return cropped_qr
+    
+    # QR 코드 영역을 찾지 못하면 원본 그레이스케일 이미지를 반환합니다.
+    return gray
 
 def main():
     """
@@ -75,18 +100,16 @@ def main():
         ret, frame = cap.read() # 웹캠에서 한 프레임을 읽어옵니다.
         if not ret: # 프레임을 읽는 데 실패하면 루프를 종료합니다.
             break
-
-        data = None # 디코딩 결과를 저장할 변수를 초기화합니다.
-        points = None # QR 코드의 경계점을 저장할 변수를 초기화합니다.
-
+        
         # 1. 원본 프레임에서 인식 시도: 가장 빠르고 효율적인 방법입니다.
         data, points, _ = detector.detectAndDecode(frame)
-
+        
+        # 2. 실패하면 컨투어 기반으로 전처리된 프레임으로 재시도
         if not data:
-            # 2. 실패하면 전처리된 프레임으로 재시도: 복잡한 환경에서 인식률을 높입니다.
             enhanced_frame = enhance_image_for_qr(frame.copy())
+            # 디코더는 BGR 또는 그레이스케일 프레임을 받으므로, 바로 적용합니다.
             data, points, _ = detector.detectAndDecode(enhanced_frame)
-
+            
         # 결과에 따른 화면 표시 및 링크 연결 로직
         display_frame = frame.copy()
         display_msg = "QR 코드를 찾는 중입니다..."
@@ -116,6 +139,7 @@ def main():
                 color = (0, 255, 255) # 노란색
             
             # QR 코드 경계 상자 그리기
+            # 컨투어 방식은 points가 없을 수도 있으므로 확인합니다.
             if points is not None and len(points) > 0:
                 points = np.int32(points).reshape(-1, 2)
                 cv2.polylines(display_frame, [points], True, color, 3)
