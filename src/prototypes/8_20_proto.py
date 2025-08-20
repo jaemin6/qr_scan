@@ -1,7 +1,7 @@
 # 필요한 라이브러리를 가져옵니다.
 import cv2 # OpenCV 라이브러리: 이미지 및 비디오 처리에 사용됩니다.
 import webbrowser # 웹 브라우저를 제어하는 라이브러리: QR 코드 링크를 자동으로 엽니다.
-import time # 시간 관련 라이브러리: QR 코드 중복 인식을 방지하기 위한 딜레이를 처리합니다.
+import time # 시간 관련 라이브러리: 시간 측정 및 딜레이를 처리합니다.
 import numpy as np # NumPy 라이브러리: 배열 및 행렬 연산을 효율적으로 처리합니다.
 import re # 정규 표현식(Regular Expression) 라이브러리: URL 유효성을 검사합니다.
 from PIL import ImageFont, ImageDraw, Image # Pillow 라이브러리: 이미지에 한글을 쓰기 위해 사용됩니다.
@@ -62,6 +62,37 @@ def get_qr_contours(frame):
 
     return qr_regions
 
+def show_statistics(total_frames, recognized_frames, recognition_times):
+    """
+    통계 정보를 별도의 창에 표시합니다.
+    """
+    # 통계 정보를 계산합니다.
+    recognition_rate = (recognized_frames / total_frames) * 100 if total_frames > 0 else 0
+    avg_recognition_time = np.mean(recognition_times) if len(recognition_times) > 0 else 0
+
+    # 통계 메시지를 생성합니다.
+    stats_msg1 = f"총 프레임 수: {total_frames}"
+    stats_msg2 = f"QR 코드 인식 프레임 수: {recognized_frames}"
+    stats_msg3 = f"인식률: {recognition_rate:.2f}%"
+    stats_msg4 = f"평균 인식 시간: {avg_recognition_time*1000:.2f}ms"
+
+    # 통계 정보를 담을 새로운 이미지(창)를 생성합니다.
+    height, width = 300, 500
+    stats_image = np.zeros((height, width, 3), dtype=np.uint8)
+    stats_image.fill(255) # 흰색 배경
+
+    # 한글 텍스트를 이미지에 표시합니다.
+    stats_image = put_text_on_frame(stats_image, "--- 스캔 통계 ---", (100, 50), (0, 0, 0))
+    stats_image = put_text_on_frame(stats_image, stats_msg1, (50, 100), (0, 0, 0))
+    stats_image = put_text_on_frame(stats_image, stats_msg2, (50, 140), (0, 0, 0))
+    stats_image = put_text_on_frame(stats_image, stats_msg3, (50, 180), (0, 0, 0))
+    stats_image = put_text_on_frame(stats_image, stats_msg4, (50, 220), (0, 0, 0))
+    
+    cv2.imshow("Statistics", stats_image)
+    cv2.waitKey(0) # 아무 키나 누를 때까지 창을 유지합니다.
+    cv2.destroyAllWindows()
+
+
 def main():
     """
     메인 함수: 웹캠을 통해 QR 코드를 인식하고 자동으로 링크를 엽니다.
@@ -78,13 +109,22 @@ def main():
     last_open_time = 0 # 마지막으로 링크를 연 시간을 기록합니다.
     DELAY_TIME = 5 # 같은 QR 코드를 다시 열기까지의 최소 대기 시간(초)을 설정합니다.
 
+    total_frames = 0 # 총 프레임 수를 계산합니다.
+    recognized_frames = 0 # QR 코드를 인식한 프레임 수를 계산합니다.
+    recognition_times = [] # 인식에 걸린 시간을 저장합니다.
+
     while True: # 무한 루프를 실행하여 실시간으로 프레임을 처리합니다.
         ret, frame = cap.read() # 웹캠에서 한 프레임을 읽어옵니다.
         if not ret: # 프레임을 읽는 데 실패하면 루프를 종료합니다.
             break
         
+        total_frames += 1
+        
+        start_time = time.time() # 인식 시작 시간을 기록합니다.
+        
         display_frame = frame.copy()
         found_data = False
+        data = None
         
         # 1. 원본 프레임에서 인식 시도
         data, points, _ = detector.detectAndDecode(frame)
@@ -117,6 +157,10 @@ def main():
         color = (255, 0, 0) # 파란색
         
         if found_data:
+            end_time = time.time() # 인식 종료 시간을 기록합니다.
+            recognition_times.append(end_time - start_time)
+            recognized_frames += 1
+            
             is_same_qr = (data == last_data)
             is_delay_passed = (time.time() - last_open_time) > DELAY_TIME
             
@@ -156,9 +200,10 @@ def main():
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    # 자원 해제
+    # 자원 해제 및 통계 표시
     cap.release()
     cv2.destroyAllWindows()
+    show_statistics(total_frames, recognized_frames, recognition_times)
 
 if __name__ == "__main__":
     main()
