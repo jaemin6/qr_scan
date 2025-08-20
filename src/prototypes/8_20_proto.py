@@ -37,31 +37,6 @@ def put_text_on_frame(frame, text, pos, color=(255, 0, 0)):
         cv2.putText(frame, text, pos, cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
         return frame
 
-def get_qr_contours(frame):
-    """
-    QR 코드 인식을 위해 컨투어 기반으로 잠재적인 QR 코드 영역을 찾습니다.
-    여러 개의 컨투어를 반환합니다.
-    """
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.medianBlur(gray, 5)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-    enhanced = clahe.apply(blurred)
-
-    _, thresh = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    contours, _ = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-
-    qr_regions = []
-    for contour in contours:
-        perimeter = cv2.arcLength(contour, True)
-        approx = cv2.approxPolyDP(contour, 0.04 * perimeter, True) 
-        area = cv2.contourArea(contour)
-
-        # 사각형 형태이고, 일정 크기 이상인 컨투어만 필터링합니다.
-        if len(approx) == 4 and area > 100:
-            qr_regions.append(approx)
-
-    return qr_regions
-
 def show_statistics(total_frames, recognized_frames, recognition_times):
     """
     통계 정보를 별도의 창에 표시합니다.
@@ -125,33 +100,23 @@ def main():
         display_frame = frame.copy()
         found_data = False
         data = None
+        points = None
         
         # 1. 원본 프레임에서 인식 시도
         data, points, _ = detector.detectAndDecode(frame)
         if data:
             found_data = True
         
-        # 2. 실패하면 다중 컨투어 기반으로 잠재적인 QR 코드 영역 찾기
+        # 2. 원본에서 인식 실패 시, 이미지 전처리를 통해 다시 인식 시도
         if not found_data:
-            qr_contours = get_qr_contours(frame.copy())
-            for contour in qr_contours:
-                x, y, w, h = cv2.boundingRect(contour)
-                cropped_qr = frame[y:y+h, x:x+w]
-                
-                # 잘라낸 영역의 크기가 유효한지 확인합니다.
-                if cropped_qr.shape[0] > 0 and cropped_qr.shape[1] > 0:
-                    data, points, _ = detector.detectAndDecode(cropped_qr)
-                    # 인식 성공 시 루프를 종료합니다.
-                    if data:
-                        found_data = True
-                        # 잘라낸 영역의 좌표를 원본 프레임 기준으로 조정
-                        if points is not None:
-                            points = points[0]
-                            points[:,0] += x
-                            points[:,1] += y
-                            points = np.array([points])
-                        break # 인식 성공 시 다른 컨투어는 더 이상 검사하지 않습니다.
-
+            # 이미지를 흑백으로 변환하고 대비를 높입니다.
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            enhanced_frame = cv2.equalizeHist(gray_frame)
+            
+            data, points, _ = detector.detectAndDecode(enhanced_frame)
+            if data:
+                found_data = True
+        
         # 결과에 따른 화면 표시 및 링크 연결 로직
         display_msg = "QR 코드를 찾는 중입니다..."
         color = (255, 0, 0) # 파란색
@@ -172,7 +137,10 @@ def main():
                 color = (0, 255, 0) # 초록색
                 print(f"QR 코드 인식 성공: {data}")
                 
-                webbrowser.open(data)
+                try:
+                    webbrowser.open(data)
+                except Exception as e:
+                    print(f"URL 열기 실패: {e}")
                 
                 last_data = data
                 last_open_time = time.time()
