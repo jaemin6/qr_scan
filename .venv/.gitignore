@@ -1,0 +1,7 @@
+src/*.pt
+src/*.jpg
+dataset/*jpg
+dataset/*png
+prototypes/*pt
+prototypes/*jpg
+prototypes/*png
