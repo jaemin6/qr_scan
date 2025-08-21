@@ -10,11 +10,25 @@ def create_pdf(script_path, output_path):
     """
     try:
         # 1. 파이썬 스크립트 실행 및 결과 캡처
-        # subprocess를 사용하여 스크립트를 실행하고, 표준 출력을 캡처합니다.
         # stderr=subprocess.STDOUT를 사용해 오류 메시지도 함께 캡처합니다.
+        # 인코딩 오류를 무시하기 위해 'errors="ignore"' 옵션을 추가했습니다.
+        # 이 옵션은 유니코드 디코딩 오류를 방지합니다.
         print(f"Executing script: {script_path}...")
-        result = subprocess.run(['python', script_path], capture_output=True, text=True, encoding='utf-8')
-        output = result.stdout + result.stderr
+        result = subprocess.run(
+            ['python', script_path], 
+            capture_output=True, 
+            text=True, 
+            encoding='utf-8', 
+            errors='ignore',
+            timeout=20 # 스크립트 실행 시간을 20초로 제한하여 무한 루프를 방지합니다.
+        )
+        
+        # 'NoneType' 오류를 방지하기 위해 출력을 안전하게 처리합니다.
+        stdout_output = result.stdout if result.stdout is not None else ""
+        stderr_output = result.stderr if result.stderr is not None else ""
+        
+        # 표준 출력과 에러 출력을 하나로 합칩니다.
+        output = stdout_output + stderr_output
 
         print("Script execution complete. Creating PDF...")
 
@@ -53,6 +67,9 @@ def create_pdf(script_path, output_path):
         
     except FileNotFoundError:
         print(f"Error: The file '{script_path}' was not found. Please check the file path.")
+    except subprocess.TimeoutExpired:
+        print(f"Error: The script '{script_path}' timed out. It might be waiting for user input or in a loop.")
+        print("Please ensure the script exits gracefully or add a timeout.")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
